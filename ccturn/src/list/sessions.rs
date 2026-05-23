@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::list::metadata::{SessionMetadata, extract_session_metadata};
 use crate::locator::{CwdSource, read_first_cwd_in_session, reconstruct_cwd_from_encoded};
 
+#[derive(Serialize)]
 pub struct SessionListing {
     pub log_root: PathBuf,
     pub encoded_cwd: String,
@@ -20,6 +21,7 @@ pub struct SessionListing {
     pub sessions: Vec<SessionRow>,
 }
 
+#[derive(Serialize)]
 pub struct SessionRow {
     pub session_id: String,
     pub log_path: PathBuf,
@@ -42,6 +44,7 @@ pub enum SessionStatus {
     Unknown,
 }
 
+#[derive(Serialize)]
 pub struct SubagentSummary {
     pub agent_id: String,
     pub agent_type: String,
@@ -55,6 +58,7 @@ pub struct SubagentSummary {
     pub log_path: Option<PathBuf>,
 }
 
+#[derive(Serialize)]
 pub struct ToolStats {
     pub read_count: u64,
     pub search_count: u64,

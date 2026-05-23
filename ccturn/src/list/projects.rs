@@ -5,14 +5,17 @@ use std::time::SystemTime;
 
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 use crate::locator::{CwdSource, read_first_cwd_in_session, reconstruct_cwd_from_encoded};
 
+#[derive(Serialize)]
 pub struct ProjectListing {
     pub log_root: PathBuf,
     pub projects: Vec<ProjectRow>,
 }
 
+#[derive(Serialize)]
 pub struct ProjectRow {
     pub encoded_cwd: String,
     pub project_cwd: Option<PathBuf>,
