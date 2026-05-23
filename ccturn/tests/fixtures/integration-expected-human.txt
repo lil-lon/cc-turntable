@@ -1,0 +1,37 @@
+Session  integration-session
+Project  /tmp/test-project
+Span     2026-05-19T09:00:00Z → 2026-05-19T09:00:18Z  (18s)
+Records  19 lines
+
+== Skills (1) ==
+  gh-cli  1 invocation, 0 inner errors, window 1 tool uses
+
+== Subagents (1) ==
+  Explore  report-agent-1  status=completed  5.0s  12000 tok   bash=0 read=2 search=1 edit=0
+    description: Explore the codebase for the integration fixture
+    log: tests/fixtures/projects/-tmp-test-project/integration-session/subagents/agent-report-agent-1.jsonl
+
+== Tools (top 10 by use) ==
+  Bash  3 invocations, 2 errors
+  Edit  1 invocation, 1 error
+  Read  1 invocation, 1 error
+  Skill  1 invocation, 0 errors   [see Skills]
+  Task  1 invocation, 0 errors   [see Subagents]
+
+== Errors (4) ==
+  UserRejection (1):
+    Bash  tu_reject  "The user doesn't want to proceed with this tool use."
+  PermissionDenied (1):
+    Edit  tu_perm  "Permission to use Edit on /etc/hosts has been denied."
+  HookBlock (1):
+    Bash  tu_hook  "PreToolUse:Bash hook error: command blocked by the validator."
+  Technical (1):
+    Read  tu_tech  "exit 1: file not found"
+
+== Interventions (4) ==
+  [error]  Bash  at 09:00:09Z
+  [error]  Edit  at 09:00:11Z
+  [error]  Bash  at 09:00:13Z
+  [user]   mid-stream user message at 09:00:17Z
+    "please reconsider and read the file first"
+
