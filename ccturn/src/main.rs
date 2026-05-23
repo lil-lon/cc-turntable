@@ -1,19 +1,13 @@
-mod extract;
-mod format;
-mod locator;
-mod parser;
-mod report;
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::error::ErrorKind;
 use clap::{Parser, Subcommand};
 
-use crate::format::human::format_human;
-use crate::format::json::format_json;
-use crate::locator::{default_log_root, resolve};
-use crate::report::build_report;
+use ccturn::format::human::format_human;
+use ccturn::format::json::format_json;
+use ccturn::locator::{default_log_root, resolve};
+use ccturn::report::build_report;
 
 #[derive(Parser)]
 #[command(name = "ccturn", about = "Claude Code session inspector")]

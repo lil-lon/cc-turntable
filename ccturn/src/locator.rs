@@ -129,7 +129,7 @@ pub fn resolve(
 // record that has no `cwd`, so reading the literal first line and giving up is
 // too narrow — we'd fall back to the lossy encoded-cwd reconstruction even when
 // the ground-truth path is sitting on line 2.
-fn read_first_cwd_in_session(jsonl_path: &Path) -> Option<String> {
+pub(crate) fn read_first_cwd_in_session(jsonl_path: &Path) -> Option<String> {
     let file = File::open(jsonl_path)
         .with_context(|| format!("open {}", jsonl_path.display()))
         .ok()?;
@@ -146,7 +146,7 @@ fn read_first_cwd_in_session(jsonl_path: &Path) -> Option<String> {
     None
 }
 
-fn reconstruct_cwd_from_encoded(encoded: &str) -> String {
+pub(crate) fn reconstruct_cwd_from_encoded(encoded: &str) -> String {
     encoded.replace('-', "/")
 }
 
