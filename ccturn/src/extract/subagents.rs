@@ -191,6 +191,7 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/subagent-invocation.jsonl");
         parse_session(&path)
+            .expect("fixture must open")
             .collect::<anyhow::Result<Vec<_>>>()
             .expect("fixture must parse cleanly")
     }

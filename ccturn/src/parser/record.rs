@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+use anyhow::Context;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
@@ -98,16 +99,19 @@ pub enum ContentBlock {
     },
 }
 
-pub fn parse_session(path: &Path) -> impl Iterator<Item = anyhow::Result<JsonlRecord>> {
-    let inner: Box<dyn Iterator<Item = anyhow::Result<JsonlRecord>>> = match File::open(path) {
-        Ok(file) => Box::new(BufReader::new(file).lines().map(|line_result| {
-            let line = line_result?;
-            let record: JsonlRecord = serde_json::from_str(&line)?;
-            Ok(record)
-        })),
-        Err(e) => Box::new(std::iter::once(Err(anyhow::Error::from(e)))),
-    };
-    inner
+// Returns Err when the file cannot be opened (permission denied, removed
+// between resolve and read, etc.). Callers MUST distinguish that from
+// per-line `Err` items, which only indicate a malformed JSON record on a
+// specific line and are safe to skip-and-warn.
+pub fn parse_session(
+    path: &Path,
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<JsonlRecord>>> {
+    let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+    Ok(BufReader::new(file).lines().map(|line_result| {
+        let line = line_result?;
+        let record: JsonlRecord = serde_json::from_str(&line)?;
+        Ok(record)
+    }))
 }
 
 // Phase A test specification for the JSONL parser (design doc § Implementation
@@ -473,7 +477,9 @@ mod tests {
     #[test]
     fn parse_session_yields_each_record_from_multi_line_fixture() {
         let path = fixture_path("multi-record-valid.jsonl");
-        let results: Vec<_> = parse_session(&path).collect();
+        let results: Vec<_> = parse_session(&path)
+            .expect("fixture file must open")
+            .collect();
         assert_eq!(
             results.len(),
             3,
@@ -496,7 +502,9 @@ mod tests {
     #[test]
     fn parse_session_yields_err_for_malformed_line_but_continues_streaming() {
         let path = fixture_path("malformed-line-middle.jsonl");
-        let results: Vec<_> = parse_session(&path).collect();
+        let results: Vec<_> = parse_session(&path)
+            .expect("fixture file must open")
+            .collect();
         assert_eq!(
             results.len(),
             3,

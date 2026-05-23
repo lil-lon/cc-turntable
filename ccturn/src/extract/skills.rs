@@ -148,6 +148,7 @@ mod tests {
             .join("tests/fixtures")
             .join(name);
         let records: Vec<JsonlRecord> = parse_session(&path)
+            .unwrap_or_else(|e| panic!("fixture {name} must open: {e}"))
             .collect::<anyhow::Result<Vec<_>>>()
             .unwrap_or_else(|e| panic!("fixture {name} must parse cleanly: {e}"));
         extract_skills(&records)

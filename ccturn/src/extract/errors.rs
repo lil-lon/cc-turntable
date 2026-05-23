@@ -128,6 +128,7 @@ mod tests {
             .join("tests/fixtures")
             .join(fixture);
         parse_session(&path)
+            .unwrap_or_else(|e| panic!("fixture {fixture} must open: {e}"))
             .collect::<anyhow::Result<Vec<_>>>()
             .unwrap_or_else(|e| panic!("fixture {fixture} must parse: {e}"))
     }

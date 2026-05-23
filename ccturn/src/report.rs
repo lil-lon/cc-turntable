@@ -30,10 +30,13 @@ pub struct SessionReport {
 
 pub fn build_report(resolved: &ResolvedSession) -> anyhow::Result<SessionReport> {
     // One pass over the file: collect parsed records, skip + warn on malformed
-    // lines, count every line toward `record_count`.
+    // lines, count every line toward `record_count`. Propagate File::open
+    // failures (permission denied, file removed between resolve and read) so
+    // `main` can map them to exit 2 instead of producing a silently-empty
+    // report.
     let mut records: Vec<JsonlRecord> = Vec::new();
     let mut record_count = 0usize;
-    for (idx, item) in parse_session(&resolved.jsonl_path).enumerate() {
+    for (idx, item) in parse_session(&resolved.jsonl_path)?.enumerate() {
         record_count += 1;
         match item {
             Ok(record) => records.push(record),
@@ -271,6 +274,31 @@ mod tests {
             json["ended_at"], "2026-05-19T09:00:02.000Z",
             "ended_at must skip the trailing snapshot record (no top-level timestamp) \
              and land on the last record that carries one"
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // File-open failures (permission denied, file removed between resolve
+    // and read) must propagate as Err so `main` can map them to exit 2
+    // instead of silently emitting a successful empty report.
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn build_report_returns_err_when_session_log_cannot_be_opened() {
+        let fixtures = fixtures_dir();
+        let missing = fixtures.join("does-not-exist.jsonl");
+        let resolved = ResolvedSession {
+            jsonl_path: missing,
+            subagents_dir: fixtures.clone(),
+            project_cwd_encoded: "-tmp-test-project".to_string(),
+            project_cwd: PathBuf::from("/tmp/test-project"),
+            cwd_source: CwdSource::FirstRecord,
+        };
+        let result = build_report(&resolved);
+        assert!(
+            result.is_err(),
+            "build_report must return Err when the session log cannot be opened, \
+             not a silently-empty Ok report"
         );
     }
 }
