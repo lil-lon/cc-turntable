@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::extract::assistant_content_blocks;
+use crate::extract::{tool_result_blocks, tool_use_blocks};
 use crate::parser::record::{ContentBlock, JsonlRecord};
 
 #[derive(Debug, Clone, Serialize)]
@@ -13,10 +13,12 @@ pub struct ToolUsage {
 }
 
 pub fn extract_tools(records: &[JsonlRecord]) -> Vec<ToolUsage> {
-    // tool_use_id -> is_error of the matching tool_result.
+    // tool_use_id -> is_error of the matching tool_result. Tool results live
+    // in user records (Messages API convention), so we scan there for the
+    // result and never expect to find one on the originating assistant record.
     let mut error_map: HashMap<String, bool> = HashMap::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_result_blocks(record) {
             if let ContentBlock::ToolResult {
                 tool_use_id,
                 is_error,
@@ -32,7 +34,7 @@ pub fn extract_tools(records: &[JsonlRecord]) -> Vec<ToolUsage> {
     // themselves `tool_use` blocks, so they accumulate their own rows here.
     let mut counts: HashMap<String, (usize, usize)> = HashMap::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_use_blocks(record) {
             if let ContentBlock::ToolUse { id, name, .. } = block {
                 let entry = counts.entry(name).or_insert((0, 0));
                 entry.0 += 1;
