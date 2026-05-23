@@ -1,0 +1,4 @@
+{"type":"file-history-snapshot","messageId":"sn1","snapshot":{"messageId":"sn1","trackedFileBackups":{},"timestamp":"2026-05-19T09:00:00.000Z"},"isSnapshotUpdate":false}
+{"type":"user","cwd":"/tmp/test-project","sessionId":"file-history-first-record","timestamp":"2026-05-19T09:00:01.000Z","uuid":"u1","message":{"role":"user","content":"start"}}
+{"type":"assistant","cwd":"/tmp/test-project","sessionId":"file-history-first-record","timestamp":"2026-05-19T09:00:02.000Z","uuid":"a1","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}
+{"type":"file-history-snapshot","messageId":"sn2","snapshot":{"messageId":"sn2","trackedFileBackups":{},"timestamp":"2026-05-19T09:00:03.000Z"},"isSnapshotUpdate":false}

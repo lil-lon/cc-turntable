@@ -1,0 +1,2 @@
+{"type":"user","uuid":"e1","parentUuid":null,"sessionId":"empty-sections","cwd":"/tmp/test-project","timestamp":"2026-05-19T12:00:00.000000+00:00","message":{"role":"user","content":"hello"}}
+{"type":"assistant","uuid":"e2","parentUuid":"e1","sessionId":"empty-sections","cwd":"/tmp/test-project","timestamp":"2026-05-19T12:00:01.000000+00:00","message":{"role":"assistant","content":[{"type":"text","text":"hi there, nothing to do"}]}}
