@@ -6,6 +6,12 @@ use clap::{Parser, Subcommand};
 
 use ccturn::format::human::format_human;
 use ccturn::format::json::format_json;
+use ccturn::format::list_human::{
+    format_projects, format_sessions_default, format_sessions_oneline,
+};
+use ccturn::format::list_json::{format_projects_json, format_sessions_json};
+use ccturn::list::projects::list_projects;
+use ccturn::list::sessions::list_sessions;
 use ccturn::locator::{default_log_root, resolve};
 use ccturn::report::build_report;
 
@@ -44,6 +50,7 @@ enum Command {
     /// List the sessions in one project with timestamp / status / one-line summary.
     Tracks {
         /// Encoded-cwd token naming the project directory under the log root.
+        #[arg(allow_hyphen_values = true)]
         project: String,
         /// Cap the row count after sorting (git-log -n analogue).
         #[arg(short = 'n', long = "limit")]
@@ -128,26 +135,58 @@ fn run_spin(
     ExitCode::SUCCESS
 }
 
-fn run_crates(_json: bool, log_root: Option<PathBuf>) -> ExitCode {
+fn run_crates(json: bool, log_root: Option<PathBuf>) -> ExitCode {
     let log_root = log_root.unwrap_or_else(default_log_root);
     if !log_root.exists() {
         eprintln!("error: log root {} does not exist", log_root.display());
         return ExitCode::from(1);
     }
+
+    let listing = match list_projects(&log_root) {
+        Ok(listing) => listing,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(1);
+        }
+    };
+
+    if json {
+        println!("{}", format_projects_json(&listing));
+    } else {
+        print!("{}", format_projects(&listing));
+    }
     ExitCode::SUCCESS
 }
 
 fn run_tracks(
-    _project: &str,
-    _limit: Option<usize>,
-    _oneline: bool,
-    _json: bool,
+    project: &str,
+    limit: Option<usize>,
+    oneline: bool,
+    json: bool,
     log_root: Option<PathBuf>,
 ) -> ExitCode {
     let log_root = log_root.unwrap_or_else(default_log_root);
     if !log_root.exists() {
         eprintln!("error: log root {} does not exist", log_root.display());
         return ExitCode::from(1);
+    }
+
+    let listing = match list_sessions(&log_root, project, limit) {
+        Ok(listing) => listing,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(1);
+        }
+    };
+
+    if json {
+        println!("{}", format_sessions_json(&listing));
+    } else if oneline {
+        print!("{}", format_sessions_oneline(&listing));
+    } else {
+        let project_dir = log_root.join(project);
+        let resolver = move |session_id: &str| project_dir.join(session_id).join("subagents");
+        print!("{}", format_sessions_default(&listing, resolver));
     }
     ExitCode::SUCCESS
 }

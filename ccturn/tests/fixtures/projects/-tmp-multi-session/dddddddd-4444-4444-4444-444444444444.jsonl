@@ -1,0 +1,2 @@
+{"type":"user","uuid":"u1","parentUuid":null,"sessionId":"dddddddd-4444-4444-4444-444444444444","cwd":"/tmp/multi-session","timestamp":"2026-05-22T15:00:00.000000+00:00","message":{"role":"user","content":"launch a Task subagent and abort"}}
+{"type":"assistant","uuid":"u2","parentUuid":"u1","sessionId":"dddddddd-4444-4444-4444-444444444444","cwd":"/tmp/multi-session","timestamp":"2026-05-22T15:00:01.000000+00:00","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu_DANGLE","name":"Task","input":{"subagent_type":"Explore","description":"Search forever"}}]}}
