@@ -107,7 +107,7 @@ pub fn resolve(
         .into_owned();
     let subagents_dir = project_dir.join(session_id).join("subagents");
 
-    let (project_cwd, cwd_source) = match read_first_record_cwd(&jsonl_path) {
+    let (project_cwd, cwd_source) = match read_first_cwd_in_session(&jsonl_path) {
         Some(cwd) => (PathBuf::from(cwd), CwdSource::FirstRecord),
         None => (
             PathBuf::from(reconstruct_cwd_from_encoded(&project_cwd_encoded)),
@@ -124,18 +124,26 @@ pub fn resolve(
     })
 }
 
-fn read_first_record_cwd(jsonl_path: &Path) -> Option<String> {
+// Scans the session JSONL for the first record that carries a top-level `cwd`
+// field. Real Claude Code sessions often begin with a `file-history-snapshot`
+// record that has no `cwd`, so reading the literal first line and giving up is
+// too narrow — we'd fall back to the lossy encoded-cwd reconstruction even when
+// the ground-truth path is sitting on line 2.
+fn read_first_cwd_in_session(jsonl_path: &Path) -> Option<String> {
     let file = File::open(jsonl_path)
         .with_context(|| format!("open {}", jsonl_path.display()))
         .ok()?;
-    let mut reader = BufReader::new(file);
-    let mut line = String::new();
-    let bytes = reader.read_line(&mut line).ok()?;
-    if bytes == 0 {
-        return None;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let Ok(line) = line else { continue };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line.trim_end()) else {
+            continue;
+        };
+        if let Some(cwd) = value.get("cwd").and_then(|v| v.as_str()) {
+            return Some(cwd.to_owned());
+        }
     }
-    let value: serde_json::Value = serde_json::from_str(line.trim_end()).ok()?;
-    value.get("cwd")?.as_str().map(str::to_owned)
+    None
 }
 
 fn reconstruct_cwd_from_encoded(encoded: &str) -> String {
@@ -399,6 +407,45 @@ mod tests {
             "cwd_source must be FirstRecord when the JSONL has a readable `cwd` on the first record"
         );
         assert_eq!(resolved.project_cwd_encoded, encoded);
+    }
+
+    // ---------------------------------------------------------------------
+    // `resolve` — real Claude Code sessions begin with a `file-history-
+    // snapshot` record that has no top-level `cwd`. The ground truth lives
+    // on a later record (typically the first `user` line). The locator
+    // must scan forward, NOT give up after the literal first line and
+    // fall back to the lossy encoded-cwd reconstruction.
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn resolve_reads_ground_truth_cwd_from_first_record_that_carries_cwd() {
+        let tmp = TempDir::new().unwrap();
+        let session_id = "session-ffff";
+        // The encoded-cwd token contains a `-` inside one of the directory
+        // names (`lil-lon`). If the locator falls back to reconstruction it
+        // turns those internal hyphens into path separators, scrambling the
+        // path. The test pins that fallback is NOT taken when the cwd is
+        // discoverable elsewhere in the file.
+        let encoded = "-Users-me-lil-lon-repo";
+        let ground_truth = "/Users/me/lil-lon/repo";
+        let snapshot_line = r#"{"type":"file-history-snapshot","messageId":"sn1","snapshot":{"messageId":"sn1","trackedFileBackups":{},"timestamp":"2026-05-19T09:00:00.000Z"},"isSnapshotUpdate":false}"#;
+        let user_line = format!(
+            r#"{{"type":"user","cwd":"{ground_truth}","sessionId":"{session_id}","timestamp":"2026-05-19T09:00:01.000Z","uuid":"u1"}}"#,
+        );
+        let body = format!("{snapshot_line}\n{user_line}\n");
+        let _ = write_session_jsonl(tmp.path(), encoded, session_id, &body);
+        let resolved = resolve(tmp.path(), session_id, None).expect("resolve must succeed");
+        assert_eq!(
+            resolved.project_cwd,
+            PathBuf::from(ground_truth),
+            "project_cwd must be the `cwd` from the FIRST record that carries one, \
+             not the lossy reconstruction of the encoded-cwd directory name"
+        );
+        assert!(
+            matches!(resolved.cwd_source, CwdSource::FirstRecord),
+            "cwd_source is FirstRecord whenever the ground truth was read from the JSONL, \
+             regardless of whether the cwd-carrying record was on line 1 or later"
+        );
     }
 
     // ---------------------------------------------------------------------

@@ -47,13 +47,20 @@ pub fn build_report(resolved: &ResolvedSession) -> anyhow::Result<SessionReport>
         .map(|stem| stem.to_string_lossy().into_owned())
         .unwrap_or_default();
 
+    // Span bounds are the FIRST and LAST records that carry a top-level
+    // `timestamp`. Real sessions can bracket the conversation with
+    // `file-history-snapshot` records whose timestamp lives nested under
+    // `snapshot.timestamp` — those would land in `records` with
+    // `timestamp = None`. Reaching for `records.first()` directly would
+    // make `started_at` empty in that very common case.
     let started_at = records
-        .first()
-        .and_then(|r| r.timestamp.clone())
+        .iter()
+        .find_map(|r| r.timestamp.clone())
         .unwrap_or_default();
     let ended_at = records
-        .last()
-        .and_then(|r| r.timestamp.clone())
+        .iter()
+        .rev()
+        .find_map(|r| r.timestamp.clone())
         .unwrap_or_default();
 
     let skills = extract_skills(&records);
@@ -222,6 +229,48 @@ mod tests {
         assert!(
             kinds.contains(&"user-mid-stream"),
             "the mid-stream user record must surface as a user-mid-stream intervention; got {kinds:?}"
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // Real-world shape: a `file-history-snapshot` brackets the conversation
+    // at both ends. Those records carry no top-level `timestamp` (the
+    // snapshot's own timestamp is nested under `snapshot.timestamp`), so
+    // the span bounds must be the FIRST and LAST records that carry a
+    // top-level `timestamp` — not literally `records.first()` and
+    // `records.last()`.
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn build_report_finds_span_bounds_from_records_with_top_level_timestamps() {
+        let fixtures = fixtures_dir();
+        let jsonl_path = fixtures.join("file-history-first-record.jsonl");
+        let subagents_dir = fixtures.join("file-history-first-record-subagents");
+
+        let resolved = ResolvedSession {
+            jsonl_path,
+            subagents_dir,
+            project_cwd_encoded: "-tmp-test-project".to_string(),
+            project_cwd: PathBuf::from("/tmp/test-project"),
+            cwd_source: CwdSource::FirstRecord,
+        };
+
+        let report = build_report(&resolved).expect("build_report must succeed on the fixture");
+        let json = serde_json::to_value(&report).expect("SessionReport must serialise");
+
+        assert_eq!(
+            json["record_count"], 4,
+            "record_count counts every line, including the two snapshot records"
+        );
+        assert_eq!(
+            json["started_at"], "2026-05-19T09:00:01.000Z",
+            "started_at must skip the leading snapshot record (no top-level timestamp) \
+             and land on the first record that carries one"
+        );
+        assert_eq!(
+            json["ended_at"], "2026-05-19T09:00:02.000Z",
+            "ended_at must skip the trailing snapshot record (no top-level timestamp) \
+             and land on the last record that carries one"
         );
     }
 }
