@@ -1,0 +1,2 @@
+{"type":"user","uuid":"sub-r01","parentUuid":null,"sessionId":"full-session","cwd":"/tmp/test-project","timestamp":"2026-05-19T09:00:06.500000+00:00","isSidechain":true,"agentId":"report-agent-1","message":{"role":"user","content":"Explore the codebase"}}
+{"type":"assistant","uuid":"sub-r02","parentUuid":"sub-r01","sessionId":"full-session","cwd":"/tmp/test-project","timestamp":"2026-05-19T09:00:06.900000+00:00","isSidechain":true,"agentId":"report-agent-1","attributionAgent":"Explore","message":{"role":"assistant","content":[{"type":"text","text":"explored"}]}}
