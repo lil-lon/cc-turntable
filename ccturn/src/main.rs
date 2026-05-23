@@ -38,6 +38,32 @@ enum Command {
         #[arg(long)]
         log_root: Option<PathBuf>,
     },
+    /// List every project directory under the log root with session counts and latest timestamps.
+    Crates {
+        /// Emit the listing as a single JSON object on stdout instead of human text.
+        #[arg(long)]
+        json: bool,
+        /// Override the log root (default: $CLAUDE_CONFIG_DIR/projects, fallback ~/.claude/projects).
+        #[arg(long)]
+        log_root: Option<PathBuf>,
+    },
+    /// List the sessions in one project with timestamp / status / one-line summary.
+    Tracks {
+        /// Encoded-cwd token naming the project directory under the log root.
+        project: String,
+        /// Cap the row count after sorting (git-log -n analogue).
+        #[arg(short = 'n', long = "limit")]
+        limit: Option<usize>,
+        /// One row per session in a compact format (git-log --oneline analogue).
+        #[arg(long, conflicts_with = "json")]
+        oneline: bool,
+        /// Emit the listing as a single JSON object on stdout instead of human text.
+        #[arg(long, conflicts_with = "oneline")]
+        json: bool,
+        /// Override the log root (default: $CLAUDE_CONFIG_DIR/projects, fallback ~/.claude/projects).
+        #[arg(long)]
+        log_root: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -61,6 +87,14 @@ fn main() -> ExitCode {
             json,
             log_root,
         } => run_spin(&session_id, project.as_deref(), json, log_root),
+        Command::Crates { json, log_root } => run_crates(json, log_root),
+        Command::Tracks {
+            project,
+            limit,
+            oneline,
+            json,
+            log_root,
+        } => run_tracks(&project, limit, oneline, json, log_root),
     }
 }
 
@@ -96,6 +130,30 @@ fn run_spin(
         // `format_human` already ends with a newline; `print!` (not `println!`)
         // avoids a spurious trailing blank line.
         print!("{}", format_human(&report));
+    }
+    ExitCode::SUCCESS
+}
+
+fn run_crates(_json: bool, log_root: Option<PathBuf>) -> ExitCode {
+    let log_root = log_root.unwrap_or_else(default_log_root);
+    if !log_root.exists() {
+        eprintln!("error: log root {} does not exist", log_root.display());
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
+fn run_tracks(
+    _project: &str,
+    _limit: Option<usize>,
+    _oneline: bool,
+    _json: bool,
+    log_root: Option<PathBuf>,
+) -> ExitCode {
+    let log_root = log_root.unwrap_or_else(default_log_root);
+    if !log_root.exists() {
+        eprintln!("error: log root {} does not exist", log_root.display());
+        return ExitCode::from(1);
     }
     ExitCode::SUCCESS
 }
