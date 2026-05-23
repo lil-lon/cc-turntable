@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::extract::{assistant_content_blocks, value_to_content_string};
+use crate::extract::{tool_result_blocks, tool_use_blocks, value_to_content_string};
 use crate::parser::record::{ContentBlock, JsonlRecord};
 
 #[derive(Debug, Clone, Serialize)]
@@ -19,10 +19,11 @@ pub struct SkillInvocation {
 }
 
 pub fn extract_skills(records: &[JsonlRecord]) -> Vec<SkillInvocation> {
-    // First pass: tool_use_id -> (is_error, content_string).
+    // First pass: tool_use_id -> (is_error, content_string). tool_result blocks
+    // live on user records.
     let mut tool_result_map: HashMap<String, (bool, String)> = HashMap::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_result_blocks(record) {
             if let ContentBlock::ToolResult {
                 tool_use_id,
                 content,
@@ -36,9 +37,10 @@ pub fn extract_skills(records: &[JsonlRecord]) -> Vec<SkillInvocation> {
     }
 
     // Second pass: emit one SkillInvocation per launching `Skill` tool_use.
+    // tool_use blocks live on assistant records.
     let mut out: Vec<SkillInvocation> = Vec::new();
     for (i, record) in records.iter().enumerate() {
-        for block in assistant_content_blocks(record) {
+        for block in tool_use_blocks(record) {
             let ContentBlock::ToolUse {
                 id, name, input, ..
             } = block
@@ -83,13 +85,14 @@ pub fn extract_skills(records: &[JsonlRecord]) -> Vec<SkillInvocation> {
                         let mut tu_count = 0usize;
                         let mut err_count = 0usize;
                         for r in &records[s..=e] {
-                            for block in assistant_content_blocks(r) {
-                                match block {
-                                    ContentBlock::ToolUse { .. } => tu_count += 1,
-                                    ContentBlock::ToolResult { is_error: true, .. } => {
-                                        err_count += 1;
-                                    }
-                                    _ => {}
+                            // tool_use on assistant records (counted),
+                            // tool_result on user records (counted only when
+                            // is_error is true).
+                            tu_count += tool_use_blocks(r).len();
+                            for block in tool_result_blocks(r) {
+                                if matches!(block, ContentBlock::ToolResult { is_error: true, .. })
+                                {
+                                    err_count += 1;
                                 }
                             }
                         }

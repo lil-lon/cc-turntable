@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::extract::{assistant_content_blocks, value_to_content_string};
+use crate::extract::{tool_result_blocks, tool_use_blocks, value_to_content_string};
 use crate::parser::record::{ContentBlock, JsonlRecord};
 
 // Serde's default enum serialisation emits the variant name verbatim, which is
@@ -55,18 +55,23 @@ fn truncate_chars(s: &str, max: usize) -> String {
 
 pub fn extract_errors(records: &[JsonlRecord]) -> Vec<ErrorRecord> {
     // tool_use_id -> tool_name, for resolving the originating tool of each error.
+    // tool_use blocks live on assistant records.
     let mut tool_name_map: HashMap<String, String> = HashMap::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_use_blocks(record) {
             if let ContentBlock::ToolUse { id, name, .. } = block {
                 tool_name_map.insert(id, name);
             }
         }
     }
 
+    // tool_result blocks live on user records (the harness's echo to the
+    // model). The enclosing record's top-level `toolUseResult` field is what
+    // the UserRejection rule reads — keep `record.tool_use_result` in scope
+    // when classifying.
     let mut out: Vec<ErrorRecord> = Vec::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_result_blocks(record) {
             let ContentBlock::ToolResult {
                 tool_use_id,
                 content,

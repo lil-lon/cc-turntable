@@ -4,7 +4,7 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::extract::assistant_content_blocks;
+use crate::extract::{tool_result_blocks, tool_use_blocks};
 use crate::parser::record::{ContentBlock, JsonlRecord};
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -50,12 +50,13 @@ fn parse_tool_stats(v: &Value) -> ToolStats {
 }
 
 pub fn extract_subagents(records: &[JsonlRecord], subagents_dir: &Path) -> Vec<SubagentInvocation> {
-    // tool_use_id -> parent record's top-level `tool_use_result` Value. The
-    // toolUseResult payload sits on the assistant record that wraps the
-    // tool_result content block.
+    // tool_use_id -> the top-level `toolUseResult` payload on the record that
+    // carries the matching tool_result. Per the Messages API convention, the
+    // tool_result lives on a user record, so the toolUseResult metadata is on
+    // THAT user record (NOT the assistant record that issued the tool_use).
     let mut tool_use_result_map: HashMap<String, Value> = HashMap::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_result_blocks(record) {
             if let ContentBlock::ToolResult { tool_use_id, .. } = block
                 && let Some(tur) = &record.tool_use_result
             {
@@ -66,7 +67,7 @@ pub fn extract_subagents(records: &[JsonlRecord], subagents_dir: &Path) -> Vec<S
 
     let mut out: Vec<SubagentInvocation> = Vec::new();
     for record in records {
-        for block in assistant_content_blocks(record) {
+        for block in tool_use_blocks(record) {
             let ContentBlock::ToolUse { id, name, .. } = block else {
                 continue;
             };

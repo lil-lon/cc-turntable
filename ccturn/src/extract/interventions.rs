@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::extract::errors::{ErrorCategory, extract_errors};
+use crate::extract::user_record_carries_tool_result;
 use crate::parser::record::JsonlRecord;
 
 // kebab-case renders `Error` -> "error" and `UserMidStream` -> "user-mid-stream",
@@ -95,6 +96,14 @@ pub fn extract_interventions(records: &[JsonlRecord]) -> Vec<Intervention> {
             .and_then(|parent| record_type_by_uuid.get(parent).copied())
             == Some("attachment");
         if !parent_is_attachment {
+            continue;
+        }
+        // Clause 4: the record's `message.content` does NOT carry a tool_result
+        // block. user records carrying tool_result are the harness echoing a
+        // tool result back to the model, not a real human input — they would
+        // spuriously qualify if a tool happened to fire while the most recent
+        // wrapper was an attachment.
+        if user_record_carries_tool_result(record) {
             continue;
         }
 
