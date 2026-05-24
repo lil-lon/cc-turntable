@@ -422,12 +422,12 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let session_id = "session-ffff";
         // The encoded-cwd token contains a `-` inside one of the directory
-        // names (`lil-lon`). If the locator falls back to reconstruction it
+        // names (`multi-word`). If the locator falls back to reconstruction it
         // turns those internal hyphens into path separators, scrambling the
         // path. The test pins that fallback is NOT taken when the cwd is
         // discoverable elsewhere in the file.
-        let encoded = "-Users-me-lil-lon-repo";
-        let ground_truth = "/Users/me/lil-lon/repo";
+        let encoded = "-tmp-multi-word-repo";
+        let ground_truth = "/tmp/multi-word/repo";
         let snapshot_line = r#"{"type":"file-history-snapshot","messageId":"sn1","snapshot":{"messageId":"sn1","trackedFileBackups":{},"timestamp":"2026-05-19T09:00:00.000Z"},"isSnapshotUpdate":false}"#;
         let user_line = format!(
             r#"{{"type":"user","cwd":"{ground_truth}","sessionId":"{session_id}","timestamp":"2026-05-19T09:00:01.000Z","uuid":"u1"}}"#,

@@ -210,12 +210,12 @@ fn list_projects_session_count_is_zero_for_empty_project_dir() {
 #[test]
 fn list_projects_encoded_cwd_is_directory_name_verbatim() {
     let tmp = TempDir::new().unwrap();
-    let encoded = "-Users-me-lil-lon-repo";
+    let encoded = "-tmp-multi-word-repo";
     write_session(
         tmp.path(),
         encoded,
         "session-x",
-        &jsonl_with_cwd("session-x", "/Users/me/lil-lon/repo"),
+        &jsonl_with_cwd("session-x", "/tmp/multi-word/repo"),
     );
     let listing = list_projects(tmp.path()).expect("listing must succeed");
     let row = row_by_encoded(&listing, encoded);

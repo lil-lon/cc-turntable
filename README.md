@@ -27,10 +27,10 @@ Example:
 
 ```
 $ ccturn crates
-Log root  /Users/you/.claude/projects   (3 projects)
+Log root  ~/.claude/projects   (3 projects)
 
-  -Users-you-cc-turntable        42 sessions   latest 2026-05-22T18:30:00Z   /Users/you/cc-turntable
-  -Users-you-other-repo           3 sessions   latest 2026-05-21T10:15:00Z   /Users/you/other-repo
+  -Users-you-cc-turntable        42 sessions   latest 2026-05-22T18:30:00Z   ~/cc-turntable
+  -Users-you-other-repo           3 sessions   latest 2026-05-21T10:15:00Z   ~/other-repo
   -tmp-scratch                    0 sessions   latest none                  /tmp/scratch
 ```
 
@@ -49,7 +49,7 @@ Example:
 
 ```
 $ ccturn tracks -Users-you-cc-turntable -n 1
-Project   /Users/you/cc-turntable
+Project   ~/cc-turntable
 Encoded   -Users-you-cc-turntable
 Sessions  42 total   (showing 1)
 
@@ -83,7 +83,7 @@ Example:
 ```
 $ ccturn spin cbb44fe2-744e-4aee-a42d-fe87703da4b3
 Session  cbb44fe2-744e-4aee-a42d-fe87703da4b3
-Project  /Users/you/cc-turntable
+Project  ~/cc-turntable
 Span     2026-05-22T18:30:00Z → 2026-05-22T19:12:04Z  (42m 4s)
 Records  1234 lines
 
