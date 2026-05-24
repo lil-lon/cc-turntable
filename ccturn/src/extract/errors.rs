@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::extract::{tool_result_blocks, tool_use_blocks, value_to_content_string};
+use crate::extract::{
+    tool_input_excerpt, tool_result_blocks, tool_use_blocks, value_to_content_string,
+};
 use crate::parser::record::{ContentBlock, JsonlRecord};
 
 // Serde's default enum serialisation emits the variant name verbatim, which is
@@ -22,6 +24,11 @@ pub struct ErrorRecord {
     pub category: ErrorCategory,
     pub tool_name: String,
     pub tool_use_id: String,
+    // One-line summary of the originating tool_use's `input` (e.g. the Bash
+    // command, the Edit file path, the Skill name). None when no matching
+    // tool_use is found in the session, or when the tool's input shape is not
+    // yet recognised by `tool_input_excerpt`.
+    pub input_excerpt: Option<String>,
     pub excerpt: String,
     pub timestamp: String,
 }
@@ -54,13 +61,18 @@ fn truncate_chars(s: &str, max: usize) -> String {
 }
 
 pub fn extract_errors(records: &[JsonlRecord]) -> Vec<ErrorRecord> {
-    // tool_use_id -> tool_name, for resolving the originating tool of each error.
-    // tool_use blocks live on assistant records.
-    let mut tool_name_map: HashMap<String, String> = HashMap::new();
+    // tool_use_id -> (tool_name, input_excerpt), for resolving the originating
+    // tool of each error AND its single-line input summary. tool_use blocks
+    // live on assistant records.
+    let mut tool_meta_map: HashMap<String, (String, Option<String>)> = HashMap::new();
     for record in records {
         for block in tool_use_blocks(record) {
-            if let ContentBlock::ToolUse { id, name, .. } = block {
-                tool_name_map.insert(id, name);
+            if let ContentBlock::ToolUse {
+                id, name, input, ..
+            } = block
+            {
+                let input_excerpt = tool_input_excerpt(&name, &input);
+                tool_meta_map.insert(id, (name, input_excerpt));
             }
         }
     }
@@ -86,14 +98,15 @@ pub fn extract_errors(records: &[JsonlRecord]) -> Vec<ErrorRecord> {
             }
             let content_string = value_to_content_string(&content);
             let category = classify(record.tool_use_result.as_ref(), &content_string);
-            let tool_name = tool_name_map
+            let (tool_name, input_excerpt) = tool_meta_map
                 .get(&tool_use_id)
                 .cloned()
-                .unwrap_or_else(|| "<unknown>".to_string());
+                .unwrap_or_else(|| ("<unknown>".to_string(), None));
             out.push(ErrorRecord {
                 category,
                 tool_name,
                 tool_use_id,
+                input_excerpt,
                 excerpt: truncate_chars(&content_string, EXCERPT_MAX_CHARS),
                 timestamp: record.timestamp.clone().unwrap_or_default(),
             });

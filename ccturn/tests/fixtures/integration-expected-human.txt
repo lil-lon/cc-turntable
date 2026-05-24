@@ -20,18 +20,18 @@ Records  19 lines
 
 == Errors (4) ==
   UserRejection (1):
-    Bash  tu_reject  "The user doesn't want to proceed with this tool use."
+    Bash  tu_reject  "rm -rf /"
   PermissionDenied (1):
-    Edit  tu_perm  "Permission to use Edit on /etc/hosts has been denied."
+    Edit  tu_perm  "/etc/hosts"  "Permission to use Edit on /etc/hosts has been denied."
   HookBlock (1):
-    Bash  tu_hook  "PreToolUse:Bash hook error: command blocked by the validator."
+    Bash  tu_hook  "echo hi"  "PreToolUse:Bash hook error: command blocked by the validator."
   Technical (1):
-    Read  tu_tech  "exit 1: file not found"
+    Read  tu_tech  "/missing"  "exit 1: file not found"
 
 == Interventions (4) ==
-  [error]  Bash  at 09:00:09Z
-  [error]  Edit  at 09:00:11Z
-  [error]  Bash  at 09:00:13Z
+  [error]  Bash "rm -rf /"  at 09:00:09Z
+  [error]  Edit "/etc/hosts"  at 09:00:11Z
+  [error]  Bash "echo hi"  at 09:00:13Z
   [user]   mid-stream user message at 09:00:17Z
     "please reconsider and read the file first"
 

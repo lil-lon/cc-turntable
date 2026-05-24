@@ -13,7 +13,7 @@ use ccturn::format::list_json::{format_projects_json, format_sessions_json};
 use ccturn::list::projects::list_projects;
 use ccturn::list::sessions::list_sessions;
 use ccturn::locator::{default_log_root, resolve};
-use ccturn::report::build_report;
+use ccturn::report::{build_report, redact_tool_inputs};
 
 #[derive(Parser)]
 #[command(name = "ccturn", about = "Claude Code session inspector")]
@@ -37,6 +37,11 @@ enum Command {
         /// Override the log root (default: $CLAUDE_CONFIG_DIR/projects, fallback ~/.claude/projects).
         #[arg(long)]
         log_root: Option<PathBuf>,
+        /// Strip every field carrying the agent's intended tool input
+        /// (Bash commands, WebFetch URLs, Skill args, Task descriptions).
+        /// Use when sharing the report outside the local machine.
+        #[arg(long)]
+        redact_tool_input: bool,
     },
     /// List every project directory under the log root with session counts and latest timestamps.
     Crates {
@@ -87,7 +92,14 @@ fn main() -> ExitCode {
             project,
             json,
             log_root,
-        } => run_spin(&session_id, project.as_deref(), json, log_root),
+            redact_tool_input,
+        } => run_spin(
+            &session_id,
+            project.as_deref(),
+            json,
+            log_root,
+            redact_tool_input,
+        ),
         Command::Crates { json, log_root } => run_crates(json, log_root),
         Command::Tracks {
             project,
@@ -104,6 +116,7 @@ fn run_spin(
     project: Option<&str>,
     json: bool,
     log_root: Option<PathBuf>,
+    redact_tool_input: bool,
 ) -> ExitCode {
     let log_root = log_root.unwrap_or_else(default_log_root);
 
@@ -117,13 +130,17 @@ fn run_spin(
     };
 
     // Parser failures that prevent producing a report exit 2.
-    let report = match build_report(&resolved) {
+    let mut report = match build_report(&resolved) {
         Ok(report) => report,
         Err(e) => {
             eprintln!("error: {e}");
             return ExitCode::from(2);
         }
     };
+
+    if redact_tool_input {
+        redact_tool_inputs(&mut report);
+    }
 
     if json {
         println!("{}", format_json(&report));
