@@ -45,8 +45,15 @@ pub(crate) fn extract_session_metadata(path: &Path) -> SessionMetadata {
     let mut ordered_subagents: Vec<(usize, SubagentSummary)> = Vec::new();
 
     for record_result in iter {
-        let Ok(record) = record_result else {
-            continue;
+        // A single malformed JSONL line marks the whole session as `read_error`
+        // so `compute_status` returns `Unknown` instead of falsely reporting
+        // `success` on a corrupted log.
+        let record = match record_result {
+            Ok(record) => record,
+            Err(_) => {
+                metadata.read_error = true;
+                continue;
+            }
         };
 
         if let Some(ts) = &record.timestamp {

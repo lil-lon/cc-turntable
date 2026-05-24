@@ -39,6 +39,30 @@ pub fn default_log_root() -> PathBuf {
     }
 }
 
+// Reject project tokens that could escape the log root via `..`, absolute
+// paths, or path separators. Real Claude Code encoded-cwd tokens are a single
+// filesystem component (hyphens, underscores, letters, digits, dots) so any
+// `/`, `\`, or traversal segment is malformed input that must not reach
+// `log_root.join(...)`.
+pub fn validate_project_token(token: &str) -> anyhow::Result<()> {
+    if token.is_empty() {
+        return Err(anyhow!("project token must not be empty"));
+    }
+    if token == "." || token == ".." {
+        return Err(anyhow!(
+            "project token {:?} is not a valid encoded-cwd directory name",
+            token
+        ));
+    }
+    if token.contains('/') || token.contains('\\') || token.contains('\0') {
+        return Err(anyhow!(
+            "project token {:?} must be a single directory name (no path separators)",
+            token
+        ));
+    }
+    Ok(())
+}
+
 pub fn resolve(
     log_root: &Path,
     session_id: &str,
@@ -52,6 +76,7 @@ pub fn resolve(
 
     let matches: Vec<PathBuf> = match project {
         Some(project_token) => {
+            validate_project_token(project_token)?;
             let candidate = log_root.join(project_token).join(&file_name);
             if candidate.is_file() {
                 vec![candidate]
@@ -474,5 +499,24 @@ mod tests {
             "cwd_source must be ReconstructedFromEncodedCwd when the JSONL is empty"
         );
         assert_eq!(resolved.project_cwd_encoded, encoded);
+    }
+
+    // PR #4 Codex P2 — `spin --project <token>` joined the token verbatim
+    // with the log root, so `--project ../escape` could walk outside the
+    // configured log root. The shared validator rejects traversal segments,
+    // absolute paths, and embedded separators before the join.
+    #[test]
+    fn resolve_rejects_project_token_with_path_traversal() {
+        let tmp = TempDir::new().unwrap();
+        for bad in ["..", "../escape", "/abs/path", "foo/bar", "foo\\bar", ""] {
+            let err = resolve(tmp.path(), "session-id", Some(bad))
+                .err()
+                .unwrap_or_else(|| panic!("project token {bad:?} must be rejected"));
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("project token") || msg.contains("must not be empty"),
+                "rejection for {bad:?} must come from validate_project_token; got {msg}"
+            );
+        }
     }
 }

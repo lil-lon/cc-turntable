@@ -8,7 +8,9 @@ use chrono::{DateTime, FixedOffset};
 use serde::Serialize;
 
 use crate::list::metadata::{SessionMetadata, extract_session_metadata};
-use crate::locator::{CwdSource, read_first_cwd_in_session, reconstruct_cwd_from_encoded};
+use crate::locator::{
+    CwdSource, read_first_cwd_in_session, reconstruct_cwd_from_encoded, validate_project_token,
+};
 
 #[derive(Serialize)]
 pub struct SessionListing {
@@ -74,6 +76,7 @@ pub fn list_sessions(
     encoded_cwd: &str,
     limit: Option<usize>,
 ) -> anyhow::Result<SessionListing> {
+    validate_project_token(encoded_cwd)?;
     let project_dir = log_root.join(encoded_cwd);
     if !project_dir.exists() {
         return Err(anyhow!(
@@ -83,7 +86,7 @@ pub fn list_sessions(
         ));
     }
 
-    let jsonl_paths = read_jsonl_children(&project_dir);
+    let jsonl_paths = read_jsonl_children(&project_dir)?;
 
     let mut rows: Vec<SessionRow> = jsonl_paths
         .iter()
@@ -156,11 +159,18 @@ fn compute_status(metadata: &SessionMetadata) -> SessionStatus {
     }
 }
 
-fn read_jsonl_children(project_dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(project_dir) else {
-        return Vec::new();
-    };
-    entries
+fn read_jsonl_children(project_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+    // `project_dir.exists()` already passed in the caller; a `read_dir`
+    // failure here is a real I/O error (permission denied / transient) that
+    // would otherwise be silently flattened into an empty session list.
+    let entries = fs::read_dir(project_dir).map_err(|e| {
+        anyhow!(
+            "failed to read project directory {}: {}",
+            project_dir.display(),
+            e
+        )
+    })?;
+    let paths = entries
         .filter_map(Result::ok)
         .filter_map(|entry| {
             let ft = entry.file_type().ok()?;
@@ -173,7 +183,8 @@ fn read_jsonl_children(project_dir: &Path) -> Vec<PathBuf> {
             }
             Some(path)
         })
-        .collect()
+        .collect();
+    Ok(paths)
 }
 
 fn resolve_project_cwd(jsonl_paths: &[PathBuf], encoded_cwd: &str) -> (Option<PathBuf>, CwdSource) {

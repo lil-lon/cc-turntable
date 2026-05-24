@@ -816,6 +816,81 @@ fn dangling_task_emits_aborted_subagent_with_null_numerics() {
     assert_eq!(row.status, SessionStatus::Aborted);
 }
 
+// ---- Regression: PR #4 review feedback ---------------------------------
+
+// PR #4 Codex P1 — a corrupted JSONL line was being silently `continue`d, so
+// the session was classified as `success` instead of `unknown`. Setting
+// `read_error = true` on the first per-record parse failure drives
+// `compute_status` to `Unknown`.
+#[test]
+fn corrupted_jsonl_line_classifies_session_as_unknown() {
+    let tmp = TempDir::new().unwrap();
+    let sid = "s-corrupt";
+    let valid = user_text_record(sid, "2026-05-19T09:00:00.000Z", "u1", "hello");
+    let body = format!("{valid}{{not valid json\n");
+    write_session(tmp.path(), "-tmp-corrupt", sid, &body);
+
+    let listing =
+        list_sessions(tmp.path(), "-tmp-corrupt", None).expect("listing must still succeed");
+    let row = row_by_session_id(&listing, sid);
+    assert_eq!(
+        row.status,
+        SessionStatus::Unknown,
+        "a malformed JSONL line must mark the session as unknown, not silently succeed"
+    );
+}
+
+// PR #4 Codex P2 — `list_sessions` joined the project token verbatim with
+// `log_root`, so `--project ../escape` would walk out of the configured log
+// root. The shared `validate_project_token` rejects traversal segments,
+// absolute paths, and embedded separators before the join.
+#[test]
+fn list_sessions_rejects_project_token_with_path_traversal() {
+    let tmp = TempDir::new().unwrap();
+    for bad in ["..", "../escape", "/abs/path", "foo/bar", "foo\\bar", ""] {
+        let err = list_sessions(tmp.path(), bad, None)
+            .err()
+            .unwrap_or_else(|| panic!("project token {bad:?} must be rejected"));
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("project token") || msg.contains("must not be empty"),
+            "rejection for {bad:?} must come from validate_project_token; got {msg}"
+        );
+    }
+}
+
+// PR #4 Codex P2 — an unreadable project directory (chmod 000) used to be
+// flattened to an empty session list, masking real I/O failures as "0
+// sessions". `read_jsonl_children` now propagates the `read_dir` error.
+#[cfg(unix)]
+#[test]
+fn list_sessions_unreadable_project_dir_surfaces_error_not_empty_listing() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    let project_dir = tmp.path().join("-tmp-unreadable-dir");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    fs::set_permissions(&project_dir, fs::Permissions::from_mode(0o000))
+        .expect("chmod 000 to simulate unreadable project dir");
+
+    let result = list_sessions(tmp.path(), "-tmp-unreadable-dir", None);
+
+    // Restore perms BEFORE asserting so TempDir cleanup works.
+    let _ = fs::set_permissions(&project_dir, fs::Permissions::from_mode(0o755));
+
+    let err = match result {
+        Ok(_) => {
+            panic!("an unreadable project directory must surface as Err, not an empty session list")
+        }
+        Err(e) => e,
+    };
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("failed to read project directory"),
+        "error message must name the unreadable directory; got {msg}"
+    );
+}
+
 // ---- Avoid dead-code warnings for helpers not used by every test -------
 
 // `fixed_mtime` / `set_mtime` are kept for future tests that need stamped
