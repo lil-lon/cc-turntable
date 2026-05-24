@@ -73,10 +73,45 @@ Status is one of `success` / `error` / `aborted` / `unknown`, inferred from the 
 Plays through one session: skills fired, subagents spawned, tools used (top 10), categorized errors (UserRejection / PermissionDenied / HookBlock / Technical), and user interventions.
 
 ```
-ccturn spin <SESSION_ID>                   # human-readable report
-ccturn spin <SESSION_ID> --json            # single compact JSON object
-ccturn spin <SESSION_ID> --project <enc>   # scope to one project subdirectory
+ccturn spin <SESSION_ID>                       # human-readable report
+ccturn spin <SESSION_ID> --json                # single compact JSON object
+ccturn spin <SESSION_ID> --project <enc>       # scope to one project subdirectory
+ccturn spin <SESSION_ID> --redact-tool-input   # strip every tool input from the report
 ```
+
+### Sensitive data and `--redact-tool-input`
+
+`ccturn spin` exposes the agent's intended tool input on each error and intervention row (the Bash command, the Edit file path, the Skill args, the Task description), and on the `skills[].args` / `subagents[].description` fields in the JSON output. That is the whole point of the report: opaque `toolu_…` ids alone do not let you reason about what the agent was trying to do.
+
+The trade-off is that those inputs can carry sensitive data — `Bash` commands may contain tokens, `WebFetch` URLs can carry signed query parameters, the result `excerpt` on a `PermissionDenied` row often quotes the same command verbatim, and a `UserMidStream` intervention's excerpt is the user's own typed message. The tool itself never sends any of that anywhere (`ccturn` is local-only, zero network egress), so the risk only shows up when you copy the report somewhere else.
+
+Pass `--redact-tool-input` to strip the free-text fields before output. The flag affects both `--json` and the human report.
+
+**Stripped**:
+- `errors[].input_excerpt`, `errors[].excerpt`
+- `interventions[].input_excerpt`, `interventions[].excerpt`
+- `skills[].args`, `skills[].launch_content`
+- `subagents[].description`
+
+**Preserved** (so the redacted report is still useful for triage):
+- All counts, timestamps, error categories, intervention kinds
+- Identifiers: `tool_name`, `skill_name`, `agent_id`, `agent_type`, `tool_use_id`
+- The session-level fields: `session_id`, `project_cwd`, `log_path`, `started_at`, `ended_at`, `record_count`
+
+Note that `skill_name`, `project_cwd`, and `log_path` can still echo project-specific identifiers — they are kept because the report would be unintelligible without them. If you also need to scrub paths, post-process the JSON or override `--log-root` with a sanitised mirror tree.
+
+```
+$ ccturn spin <SESSION_ID> --redact-tool-input
+...
+== Errors (23) ==
+  UserRejection (2):
+    Bash  toolu_…    ""
+  PermissionDenied (3):
+    Bash  toolu_…    ""
+  ...
+```
+
+Use the flag when you want to share a report with someone who should not see the underlying commands. Skip it for personal post-mortems where the inputs are the most useful signal.
 
 Example:
 

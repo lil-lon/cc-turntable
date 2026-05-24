@@ -28,6 +28,39 @@ pub struct SessionReport {
     pub interventions: Vec<Intervention>,
 }
 
+// Clear every free-text field that can echo the agent's intended tool input
+// (Bash commands, WebFetch URLs, Skill args, Task descriptions, etc.), plus
+// the result `excerpt` fields whose harness-formatted messages often quote the
+// same command verbatim (e.g. "Permission to use Bash with command X has been
+// denied"). The `--redact-tool-input` flag invokes this after `build_report`
+// so reports shared outside the user's machine do not leak credentials, signed
+// URLs, or user-typed mid-stream messages that may sit inside those strings.
+//
+// Counts, timestamps, error categories, tool / skill / agent identifiers, and
+// the `tool_use_id` cross-reference are intentionally preserved so the
+// redacted report is still useful for triage.
+pub fn redact_tool_inputs(report: &mut SessionReport) {
+    for skill in &mut report.skills {
+        skill.args = None;
+        // `launch_content` is the verbatim text the harness echoed back when
+        // the Skill tool launched (e.g. "Launching skill: gh-cli ..."). A
+        // verbose or erroring launcher can include the same args we just
+        // cleared, so scrub it for consistency with the redaction promise.
+        skill.launch_content.clear();
+    }
+    for subagent in &mut report.subagents {
+        subagent.description.clear();
+    }
+    for error in &mut report.errors {
+        error.input_excerpt = None;
+        error.excerpt.clear();
+    }
+    for intervention in &mut report.interventions {
+        intervention.input_excerpt = None;
+        intervention.excerpt.clear();
+    }
+}
+
 pub fn build_report(resolved: &ResolvedSession) -> anyhow::Result<SessionReport> {
     // One pass over the file: collect parsed records, skip + warn on malformed
     // lines, count every line toward `record_count`. Propagate File::open
@@ -111,7 +144,7 @@ pub fn build_report(resolved: &ResolvedSession) -> anyhow::Result<SessionReport>
 
 #[cfg(test)]
 mod tests {
-    use super::build_report;
+    use super::{build_report, redact_tool_inputs};
     use crate::locator::{CwdSource, ResolvedSession};
     use std::path::PathBuf;
 
@@ -282,6 +315,101 @@ mod tests {
     // and read) must propagate as Err so `main` can map them to exit 2
     // instead of silently emitting a successful empty report.
     // ---------------------------------------------------------------------
+
+    // ---------------------------------------------------------------------
+    // `--redact-tool-input` (= `redact_tool_inputs`) must clear every field
+    // that carries the agent's tool input so a report can be shared without
+    // leaking credentials hidden in Bash commands / WebFetch URLs / etc.
+    // Counts and timestamps are unaffected.
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn redact_tool_inputs_clears_every_input_field_but_preserves_counts() {
+        let fixtures = fixtures_dir();
+        let resolved = ResolvedSession {
+            jsonl_path: fixtures.join("full-session.jsonl"),
+            subagents_dir: fixtures.join("full-session-subagents"),
+            project_cwd_encoded: "-tmp-test-project".to_string(),
+            project_cwd: PathBuf::from("/tmp/test-project"),
+            cwd_source: CwdSource::FirstRecord,
+        };
+        let mut report = build_report(&resolved).expect("build_report must succeed");
+
+        // Sanity: at least one of each field carries a value before redaction.
+        assert!(
+            report.skills.iter().any(|s| s.args.is_some()),
+            "fixture must have at least one Skill invocation with non-None args \
+             before redaction; otherwise this test would pass vacuously"
+        );
+        assert!(
+            report.skills.iter().any(|s| !s.launch_content.is_empty()),
+            "fixture must have at least one Skill invocation with non-empty launch_content"
+        );
+        assert!(
+            report.subagents.iter().any(|s| !s.description.is_empty()),
+            "fixture must have at least one subagent with a non-empty description"
+        );
+        assert!(
+            report.errors.iter().any(|e| e.input_excerpt.is_some()),
+            "fixture must have at least one error with a Some input_excerpt"
+        );
+        assert!(
+            report.errors.iter().any(|e| !e.excerpt.is_empty()),
+            "fixture must have at least one error with a non-empty excerpt"
+        );
+        assert!(
+            report.interventions.iter().any(|i| !i.excerpt.is_empty()),
+            "fixture must have at least one intervention with a non-empty excerpt"
+        );
+
+        let original_error_count = report.errors.len();
+        let original_intervention_count = report.interventions.len();
+        let original_skill_count = report.skills.len();
+        let original_subagent_count = report.subagents.len();
+
+        redact_tool_inputs(&mut report);
+
+        for skill in &report.skills {
+            assert!(skill.args.is_none(), "skill args must be cleared");
+            assert!(
+                skill.launch_content.is_empty(),
+                "skill launch_content must be cleared (can echo args)"
+            );
+        }
+        for subagent in &report.subagents {
+            assert!(
+                subagent.description.is_empty(),
+                "subagent description must be cleared"
+            );
+        }
+        for error in &report.errors {
+            assert!(
+                error.input_excerpt.is_none(),
+                "error input_excerpt must be cleared"
+            );
+            assert!(
+                error.excerpt.is_empty(),
+                "error excerpt must be cleared (often echoes the underlying command)"
+            );
+        }
+        for intervention in &report.interventions {
+            assert!(
+                intervention.input_excerpt.is_none(),
+                "intervention input_excerpt must be cleared"
+            );
+            assert!(
+                intervention.excerpt.is_empty(),
+                "intervention excerpt must be cleared (UserMidStream carries user text \
+                 verbatim, Error mirrors ErrorRecord.excerpt)"
+            );
+        }
+
+        // Counts unchanged — only the input strings are scrubbed.
+        assert_eq!(report.errors.len(), original_error_count);
+        assert_eq!(report.interventions.len(), original_intervention_count);
+        assert_eq!(report.skills.len(), original_skill_count);
+        assert_eq!(report.subagents.len(), original_subagent_count);
+    }
 
     #[test]
     fn build_report_returns_err_when_session_log_cannot_be_opened() {

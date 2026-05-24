@@ -152,10 +152,29 @@ pub fn format_human(report: &SessionReport) -> String {
             group.len()
         ));
         for err in group {
-            out.push_str(&format!(
-                "    {}  {}  \"{}\"\n",
-                err.tool_name, err.tool_use_id, err.excerpt
-            ));
+            let input_part = err
+                .input_excerpt
+                .as_deref()
+                .map(|s| format!("  \"{s}\""))
+                .unwrap_or_default();
+            // UserRejection's tool_result content is the same boilerplate
+            // string on every row ("The user doesn't want to proceed..."), so
+            // the only differentiator a reader actually cares about is the
+            // input the agent was trying to run. Suppress the excerpt only
+            // when we have an input to show — if the originating tool_use is
+            // missing or its input shape is unrecognised, fall back to the
+            // excerpt so the row is not just `tool  toolu_id` with no signal.
+            if err.category == ErrorCategory::UserRejection && err.input_excerpt.is_some() {
+                out.push_str(&format!(
+                    "    {}  {}{}\n",
+                    err.tool_name, err.tool_use_id, input_part
+                ));
+            } else {
+                out.push_str(&format!(
+                    "    {}  {}{}  \"{}\"\n",
+                    err.tool_name, err.tool_use_id, input_part, err.excerpt
+                ));
+            }
         }
     }
     out.push('\n');
@@ -169,9 +188,15 @@ pub fn format_human(report: &SessionReport) -> String {
         match iv.kind {
             InterventionKind::Error => {
                 let tool = iv.tool_name.as_deref().unwrap_or("<unknown>");
+                let input_part = iv
+                    .input_excerpt
+                    .as_deref()
+                    .map(|s| format!(" \"{s}\""))
+                    .unwrap_or_default();
                 out.push_str(&format!(
-                    "  [error]  {}  at {}\n",
+                    "  [error]  {}{}  at {}\n",
                     tool,
+                    input_part,
                     fmt_time(&iv.timestamp)
                 ));
             }

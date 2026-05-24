@@ -21,6 +21,10 @@ pub struct Intervention {
     pub kind: InterventionKind,
     pub timestamp: String,
     pub tool_name: Option<String>,
+    // For `kind = Error`, mirrors the originating tool_use's `input` summary
+    // (see `ErrorRecord::input_excerpt`). For `kind = UserMidStream`, always
+    // None — the user's text is in `excerpt` instead.
+    pub input_excerpt: Option<String>,
     pub excerpt: String,
     pub source_uuid: String,
 }
@@ -63,6 +67,7 @@ pub fn extract_interventions(records: &[JsonlRecord]) -> Vec<Intervention> {
             kind: InterventionKind::Error,
             timestamp: error.timestamp,
             tool_name: Some(error.tool_name),
+            input_excerpt: error.input_excerpt,
             excerpt: error.excerpt,
             source_uuid: error.tool_use_id,
         });
@@ -116,6 +121,7 @@ pub fn extract_interventions(records: &[JsonlRecord]) -> Vec<Intervention> {
             kind: InterventionKind::UserMidStream,
             timestamp: record.timestamp.clone().unwrap_or_default(),
             tool_name: None,
+            input_excerpt: None,
             excerpt,
             source_uuid: record.uuid.clone().unwrap_or_default(),
         });
