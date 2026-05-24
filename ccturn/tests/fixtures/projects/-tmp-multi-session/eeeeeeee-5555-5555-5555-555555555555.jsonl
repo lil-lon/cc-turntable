@@ -1,0 +1,1 @@
+{"type":"user","uuid":"u1","parentUuid":null,"sessionId":"eeeeeeee-5555-5555-5555-555555555555","cwd":"/tmp/multi-session","timestamp":"2026-05-22T14:00:00.000000+00:00","message":{"role":"user","content":"this file is chmod-000d in the unknown-status integration test"}}

@@ -19,3 +19,9 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# CAFleet artifacts
+# Unanchored: matches both repo-root and per-task <task-folder>/.cafleet-base-dir.json
+.cafleet-base-dir.json
+# Spawn-prompt audit files written by /cafleet:design-doc-execute under the task folder
+design-docs/*/prompts/
