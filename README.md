@@ -12,6 +12,31 @@ cargo install --path .
 
 The binary lands at `~/.cargo/bin/ccturn`. Default log root is `$CLAUDE_CONFIG_DIR/projects/` (falls back to `~/.claude/projects/` when unset). Pass `--log-root PATH` to override.
 
+## Development setup
+
+Dev toolchain (Rust, prek, gitleaks, cargo-audit) is pinned in `mise.toml`. Install [mise](https://mise.jdx.dev/) per its docs, then from the repo root:
+
+```
+mise trust
+mise install
+```
+
+Common tasks are defined in `mise.toml`:
+
+```
+mise run build       # cargo build --frozen
+mise run test        # cargo test --frozen
+mise run fmt         # cargo fmt
+mise run fmt:check   # cargo fmt -- --check
+mise run lint        # cargo clippy --frozen -D warnings
+mise run audit       # cargo audit
+mise run gitleaks    # gitleaks scan staged changes
+mise run hooks       # prek run --all-files
+mise run check       # fmt:check + lint + test + audit
+```
+
+`mise tasks` lists them all. The pre-commit hooks in `.pre-commit-config.yaml` delegate to these tasks, so the command definitions live in one place.
+
 Exit codes: `0` success, `1` not-found (session / project / log root), `2` parser failure, `64` usage error.
 
 ## `ccturn crates` — list projects
