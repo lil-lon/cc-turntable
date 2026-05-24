@@ -1,0 +1,41 @@
+[tools]
+rust = { version = "1.95.0", components = "rustfmt,clippy" }
+"aqua:j178/prek" = "0.4.0"
+"aqua:gitleaks/gitleaks" = "8.30.0"
+"cargo:cargo-audit" = "0.22.1"
+
+[tasks.build]
+description = "Build the ccturn crate"
+run = "cargo build --frozen --manifest-path ccturn/Cargo.toml"
+
+[tasks.test]
+description = "Run the ccturn test suite"
+run = "cargo test --frozen --manifest-path ccturn/Cargo.toml"
+
+[tasks.fmt]
+description = "Format Rust sources"
+run = "cargo fmt --manifest-path ccturn/Cargo.toml --all"
+
+[tasks."fmt:check"]
+description = "Verify Rust sources are formatted"
+run = "cargo fmt --manifest-path ccturn/Cargo.toml --all -- --check"
+
+[tasks.lint]
+description = "Run clippy with warnings as errors"
+run = "cargo clippy --frozen --manifest-path ccturn/Cargo.toml --all-targets -- -D warnings"
+
+[tasks.audit]
+description = "Audit Cargo.lock for known vulnerabilities"
+run = "cargo audit --no-fetch --file ccturn/Cargo.lock"
+
+[tasks.gitleaks]
+description = "Scan staged changes for secrets"
+run = "gitleaks git --pre-commit --redact --staged --verbose"
+
+[tasks.hooks]
+description = "Run all pre-commit hooks on every file"
+run = "prek run --all-files"
+
+[tasks.check]
+description = "Run fmt-check + lint + test + audit"
+depends = ["fmt:check", "lint", "test", "audit"]

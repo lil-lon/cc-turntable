@@ -3,35 +3,35 @@ repos:
     hooks:
       - id: gitleaks
         name: gitleaks
-        entry: gitleaks git --pre-commit --redact --staged --verbose
+        entry: mise run gitleaks
         language: system
         pass_filenames: false
         verbose: true
 
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --manifest-path ccturn/Cargo.toml --all -- --check
+        entry: mise run fmt:check
         language: system
         files: ^ccturn/.*\.rs$
         pass_filenames: false
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --manifest-path ccturn/Cargo.toml --all-targets -- -D warnings
+        entry: mise run lint
         language: system
         files: ^ccturn/.*\.(rs|toml)$
         pass_filenames: false
 
       - id: cargo-test
         name: cargo test
-        entry: cargo test --manifest-path ccturn/Cargo.toml
+        entry: mise run test
         language: system
         files: ^ccturn/.*\.(rs|toml)$
         pass_filenames: false
 
       - id: cargo-audit
         name: cargo audit
-        entry: cargo audit --no-fetch --file ccturn/Cargo.lock
+        entry: mise run audit
         language: system
         files: ^ccturn/Cargo\.lock$
         pass_filenames: false
